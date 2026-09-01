@@ -110,14 +110,14 @@ jq -n \
   --arg vless "$VLESS_LINK" \
   --arg vmess "$VMESS_LINK" \
   --arg trojan "$TROJAN_LINK" \
-  --argjson shadowsocksConfig "$SS_JSON_CONFIG" \
+  --arg shadowsocksConfig "$SS_JSON_CONFIG" \
   '{
     domain: $domain,
     sabitun: { url: $sabitunUrl, pubkey: $sabitunPubkey },
     vless: $vless,
     vmess: $vmess,
     trojan: $trojan,
-    shadowsocksConfig: ($shadowsocksConfig | tostring)
+    shadowsocksConfig: $shadowsocksConfig
   }' > /var/www/setup-data.json
 
 echo "================================================================"
