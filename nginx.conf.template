@@ -49,10 +49,19 @@ http {
             proxy_set_header Host $host;
         }
 
-        # The "one link" delivery page: all ready-to-import configs,
-        # generated fresh at every container boot (see entrypoint.sh).
+        # The "one link" delivery page: a static, polished HTML page (baked
+        # into the image) that fetches /setup-data.json (generated fresh on
+        # every boot, see entrypoint.sh) and renders all configs with
+        # one-click copy buttons.
         location /setup {
             alias /var/www/setup.html;
+            default_type text/html;
+        }
+
+        location /setup-data.json {
+            alias /var/www/setup-data.json;
+            default_type application/json;
+            add_header Cache-Control "no-store";
         }
 
         location / {
