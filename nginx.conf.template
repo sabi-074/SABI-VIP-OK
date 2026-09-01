@@ -1,0 +1,63 @@
+worker_processes 1;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    server {
+        listen __PORT__;
+
+        location /connect {
+            proxy_pass http://127.0.0.1:8081;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+
+        location /xray {
+            proxy_pass http://127.0.0.1:10001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+
+        location /vmess {
+            proxy_pass http://127.0.0.1:10002;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+
+        location /trojan {
+            proxy_pass http://127.0.0.1:10003;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+
+        location /ss {
+            proxy_pass http://127.0.0.1:10004;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+        }
+
+        # The "one link" delivery page: all ready-to-import configs,
+        # generated fresh at every container boot (see entrypoint.sh).
+        location /setup {
+            alias /var/www/setup.html;
+        }
+
+        location / {
+            default_type text/html;
+            return 200 "<!doctype html><html><head><title>OK</title></head><body><p>It works.</p></body></html>";
+        }
+    }
+}
