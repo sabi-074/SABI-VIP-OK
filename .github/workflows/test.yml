@@ -36,14 +36,26 @@ jobs:
           curl -sf http://localhost:8080/ | tee /tmp/root.html
           grep -q "It works" /tmp/root.html
 
-      - name: Test /setup page has everything
+      - name: Test /setup page (static UI)
         run: |
           curl -sf http://localhost:8080/setup | tee /tmp/setup.html
-          grep -q "SabiTun" /tmp/setup.html
-          grep -q "vless://" /tmp/setup.html
-          grep -q "vmess://" /tmp/setup.html
-          grep -q "trojan://" /tmp/setup.html
-          grep -q "shadowsocks" /tmp/setup.html
+          grep -q "SABI-VIP-OK" /tmp/setup.html
+          grep -q "setup-data.json" /tmp/setup.html
+
+      - name: Test /setup-data.json has everything
+        run: |
+          curl -sf http://localhost:8080/setup-data.json | tee /tmp/setup-data.json
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/setup-data.json'))
+          assert d['sabitun']['url'].startswith('wss://'), 'bad sabitun url'
+          assert len(d['sabitun']['pubkey']) > 10, 'bad sabitun pubkey'
+          assert d['vless'].startswith('vless://'), 'bad vless'
+          assert d['vmess'].startswith('vmess://'), 'bad vmess'
+          assert d['trojan'].startswith('trojan://'), 'bad trojan'
+          assert 'shadowsocks' in d['shadowsocksConfig'], 'bad ss config'
+          print('setup-data.json is valid:', json.dumps(d, indent=2)[:400])
+          "
 
       - name: Test WebSocket upgrade on all 5 protocol paths
         run: |
