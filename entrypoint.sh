@@ -23,6 +23,17 @@ echo " SABI-VIP-OK starting up"
 echo " Public domain detected: $DOMAIN"
 echo "================================================================"
 
+# Real public egress IP of this container (best-effort; a few fallbacks
+# in case one of these services is unreachable/blocked).
+SERVER_IP=$(curl -s --max-time 4 https://api.ipify.org || true)
+if [ -z "$SERVER_IP" ]; then
+  SERVER_IP=$(curl -s --max-time 4 https://ifconfig.me || true)
+fi
+if [ -z "$SERVER_IP" ]; then
+  SERVER_IP="(unavailable)"
+fi
+echo "Server public IP: $SERVER_IP"
+
 # ---------------------------------------------------------------------
 # 1. Start the SabiTun server (local-only port, nginx proxies /connect)
 # ---------------------------------------------------------------------
@@ -111,8 +122,10 @@ jq -n \
   --arg vmess "$VMESS_LINK" \
   --arg trojan "$TROJAN_LINK" \
   --arg shadowsocksConfig "$SS_JSON_CONFIG" \
+  --arg serverIp "$SERVER_IP" \
   '{
     domain: $domain,
+    serverIp: $serverIp,
     sabitun: { url: $sabitunUrl, pubkey: $sabitunPubkey },
     vless: $vless,
     vmess: $vmess,
