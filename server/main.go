@@ -224,10 +224,16 @@ func main() {
 	mux.HandleFunc("/connect", tunnelHandler(serverKey))
 	mux.HandleFunc("/", fallbackHandler)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// This binary always listens on a fixed LOOPBACK-ONLY port in the
+	// SABI-VIP-OK all-in-one container; nginx is the single public-facing
+	// process (on Railway's $PORT) and reverse-proxies /connect here. This
+	// keeps the same probe-resistance behavior (nginx's own catch-all /
+	// serves the boring fallback page) while letting one container run
+	// SabiTun + 4 other protocols side by side.
+	addr := os.Getenv("SABITUN_LOCAL_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:8081"
 	}
-	log.Printf("SABITUN: listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	log.Printf("SABITUN: listening on %s (internal only, behind nginx)", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
