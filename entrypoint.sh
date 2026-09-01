@@ -4,8 +4,9 @@
 #   2. Generates (or reuses, if you set env vars) credentials for VLESS,
 #      VMess, Trojan, and Shadowsocks, writes the Xray config, starts Xray.
 #   3. Builds nginx.conf (path-routes all 5 protocols on Railway's $PORT).
-#   4. Builds ONE status page (/setup) listing every ready-to-import
-#      config/link -- this is "the one link" you open to get everything.
+#   4. Writes /var/www/setup-data.json (safely, via jq) with every config;
+#      the static, already-baked-in /var/www/setup.html renders it with a
+#      polished UI and one-click copy buttons. This is "the one link".
 #   5. Starts nginx in the foreground (the container's main process).
 #
 # You do not need to run or configure anything by hand. Deploy this repo
@@ -79,80 +80,45 @@ sed \
 sed "s/__PORT__/$PORT/" /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 # ---------------------------------------------------------------------
-# 4. Build the single "everything in one link" status page
+# 4. Build /var/www/setup-data.json (safely, via jq -- no manual string
+#    escaping). The polished UI itself (/var/www/setup.html) is static
+#    and already baked into the image; it just fetches this JSON.
 # ---------------------------------------------------------------------
-VMESS_JSON=$(printf '{"v":"2","ps":"SABI-VMess","add":"%s","port":"443","id":"%s","aid":"0","scy":"auto","net":"ws","type":"none","host":"%s","path":"/vmess","tls":"tls","sni":"","alpn":""}' "$DOMAIN" "$VMESS_ID" "$DOMAIN")
+VMESS_JSON=$(jq -n \
+  --arg ps "SABI-VMess" --arg add "$DOMAIN" --arg id "$VMESS_ID" --arg host "$DOMAIN" \
+  '{v:"2",ps:$ps,add:$add,port:"443",id:$id,aid:"0",scy:"auto",net:"ws",type:"none",host:$host,path:"/vmess",tls:"tls",sni:"",alpn:""}')
 VMESS_LINK="vmess://$(printf '%s' "$VMESS_JSON" | base64 | tr -d '\n')"
 SS_USERINFO=$(printf '%s:%s' "$SS_METHOD" "$SS_PW" | base64 | tr -d '\n')
 
 VLESS_LINK="vless://${VLESS_ID}@${DOMAIN}:443?type=ws&security=tls&path=%2Fxray&host=${DOMAIN}#SABI-VLESS"
 TROJAN_LINK="trojan://${TROJAN_PW}@${DOMAIN}:443?security=tls&type=ws&path=%2Ftrojan&host=${DOMAIN}#SABI-Trojan"
-SS_LINK="ss://${SS_USERINFO}@${DOMAIN}:443?type=ws&path=%2Fss&host=${DOMAIN}&security=tls#SABI-SS"
-SS_JSON_CONFIG=$(cat <<JSONEOF
-{
-  "log": {"loglevel": "warning"},
-  "inbounds": [{"listen": "127.0.0.1", "port": 10808, "protocol": "socks", "settings": {"udp": true}}],
-  "outbounds": [{
-    "protocol": "shadowsocks",
-    "settings": {"servers": [{"address": "$DOMAIN", "port": 443, "method": "$SS_METHOD", "password": "$SS_PW"}]},
-    "streamSettings": {
-      "network": "ws", "security": "tls",
-      "wsSettings": {"path": "/ss", "headers": {"Host": "$DOMAIN"}},
-      "tlsSettings": {"serverName": "$DOMAIN"}
-    }
-  }]
-}
-JSONEOF
-)
 
-mkdir -p /var/www
-cat > /var/www/setup.html <<HTMLEOF
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>SABI-VIP-OK — ready configs</title>
-<style>
-  body { font-family: -apple-system, system-ui, sans-serif; background:#0B1220; color:#F5F7FF; padding: 24px; max-width: 820px; margin: auto; }
-  h1 { color:#00E5C7; }
-  h2 { color:#6C5CE7; margin-top: 32px; }
-  pre { background:#1B2440; border:1px solid #2C3A63; border-radius: 10px; padding: 14px; overflow-x:auto; white-space: pre-wrap; word-break: break-all; }
-  .note { color:#8C96BF; font-size: 13px; }
-</style>
-</head>
-<body>
-<h1>SABI-VIP-OK</h1>
-<p class="note">Auto-generated on every container boot. Domain: <b>$DOMAIN</b></p>
+SS_JSON_CONFIG=$(jq -n \
+  --arg address "$DOMAIN" --arg method "$SS_METHOD" --arg password "$SS_PW" --arg host "$DOMAIN" \
+  '{log:{loglevel:"warning"},
+    inbounds:[{listen:"127.0.0.1",port:10808,protocol:"socks",settings:{udp:true}}],
+    outbounds:[{protocol:"shadowsocks",
+      settings:{servers:[{address:$address,port:443,method:$method,password:$password}]},
+      streamSettings:{network:"ws",security:"tls",
+        wsSettings:{path:"/ss",headers:{Host:$host}},
+        tlsSettings:{serverName:$host}}}]}')
 
-<h2>SabiTun (custom protocol)</h2>
-<pre>Server URL:  wss://$DOMAIN/connect
-Public key:  $SABITUN_PUBKEY</pre>
-
-<h2>VLESS</h2>
-<pre>$VLESS_LINK</pre>
-
-<h2>VMess</h2>
-<pre>$VMESS_LINK</pre>
-
-<h2>Trojan</h2>
-<pre>$TROJAN_LINK</pre>
-
-<h2>Shadowsocks</h2>
-<p class="note">Most clients need the full JSON config below (not a plain ss:// link) because it needs to know about the WebSocket+TLS transport:</p>
-<pre>$SS_JSON_CONFIG</pre>
-
-<h2>Notes</h2>
-<p class="note">
-Import the VLESS/VMess/Trojan links directly into v2rayNG / NekoBox / v2rayN
-("Import config from Clipboard"). For Shadowsocks, paste the JSON block
-using the same "Import config from Clipboard" option.<br><br>
-These credentials are regenerated every time this container restarts
-(unless you set VLESS_ID / VMESS_ID / TROJAN_PW / SS_PW / SABITUN_PRIVATE_KEY
-as Railway service variables to make them persistent).
-</p>
-</body>
-</html>
-HTMLEOF
+jq -n \
+  --arg domain "$DOMAIN" \
+  --arg sabitunUrl "wss://$DOMAIN/connect" \
+  --arg sabitunPubkey "$SABITUN_PUBKEY" \
+  --arg vless "$VLESS_LINK" \
+  --arg vmess "$VMESS_LINK" \
+  --arg trojan "$TROJAN_LINK" \
+  --argjson shadowsocksConfig "$SS_JSON_CONFIG" \
+  '{
+    domain: $domain,
+    sabitun: { url: $sabitunUrl, pubkey: $sabitunPubkey },
+    vless: $vless,
+    vmess: $vmess,
+    trojan: $trojan,
+    shadowsocksConfig: ($shadowsocksConfig | tostring)
+  }' > /var/www/setup-data.json
 
 echo "================================================================"
 echo " Setup complete. Open this URL for every config, all in one page:"
