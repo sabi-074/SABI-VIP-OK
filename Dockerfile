@@ -18,7 +18,7 @@ RUN go mod tidy
 RUN go build -o /sabitun-server ./server
 
 FROM alpine:3.20
-RUN apk add --no-cache bash nginx curl unzip openssl ca-certificates && \
+RUN apk add --no-cache bash nginx curl unzip openssl ca-certificates jq && \
     curl -sfL -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip && \
     unzip -o /tmp/xray.zip -d /usr/local/bin xray && \
     chmod +x /usr/local/bin/xray && \
@@ -27,6 +27,7 @@ RUN apk add --no-cache bash nginx curl unzip openssl ca-certificates && \
 COPY --from=build /sabitun-server /usr/local/bin/sabitun-server
 COPY xray/config.template.json /etc/xray/config.template.json
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY setup.html /var/www/setup.html
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh /usr/local/bin/sabitun-server
 
