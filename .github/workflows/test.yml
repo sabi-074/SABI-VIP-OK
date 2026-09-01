@@ -1,0 +1,63 @@
+name: Build and test full container
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t sabi-vip-ok .
+
+      - name: Run container
+        run: |
+          docker run -d --name sabi -p 8080:8080 -e PORT=8080 sabi-vip-ok
+          sleep 6
+          docker logs sabi
+
+      - name: Wait for entrypoint to finish setup (poll logs)
+        run: |
+          for i in $(seq 1 20); do
+            if docker logs sabi 2>&1 | grep -q "Setup complete"; then
+              echo "Setup complete detected"
+              break
+            fi
+            sleep 1
+          done
+          docker logs sabi
+
+      - name: Test fallback page (/)
+        run: |
+          curl -sf http://localhost:8080/ | tee /tmp/root.html
+          grep -q "It works" /tmp/root.html
+
+      - name: Test /setup page has everything
+        run: |
+          curl -sf http://localhost:8080/setup | tee /tmp/setup.html
+          grep -q "SabiTun" /tmp/setup.html
+          grep -q "vless://" /tmp/setup.html
+          grep -q "vmess://" /tmp/setup.html
+          grep -q "trojan://" /tmp/setup.html
+          grep -q "shadowsocks" /tmp/setup.html
+
+      - name: Test WebSocket upgrade on all 5 protocol paths
+        run: |
+          for path in /connect /xray /vmess /trojan /ss; do
+            echo "== $path =="
+            resp=$(curl -s -i --max-time 5 \
+              -H "Upgrade: websocket" -H "Connection: Upgrade" \
+              -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+              -H "Sec-WebSocket-Version: 13" \
+              "http://localhost:8080$path")
+            echo "$resp" | head -1
+            echo "$resp" | grep -q "101" || (echo "FAILED: $path did not return 101" && exit 1)
+          done
+
+      - name: Show final container logs
+        if: always()
+        run: docker logs sabi
