@@ -1,0 +1,88 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "vless-in",
+      "listen": "127.0.0.1",
+      "port": 10001,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "__VLESS_ID__"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/xray"
+        }
+      }
+    },
+    {
+      "tag": "vmess-in",
+      "listen": "127.0.0.1",
+      "port": 10002,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "__VMESS_ID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vmess"
+        }
+      }
+    },
+    {
+      "tag": "trojan-in",
+      "listen": "127.0.0.1",
+      "port": 10003,
+      "protocol": "trojan",
+      "settings": {
+        "clients": [
+          {
+            "password": "__TROJAN_PW__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/trojan"
+        }
+      }
+    },
+    {
+      "tag": "ss-in",
+      "listen": "127.0.0.1",
+      "port": 10004,
+      "protocol": "shadowsocks",
+      "settings": {
+        "method": "chacha20-ietf-poly1305",
+        "password": "__SS_PW__",
+        "network": "tcp,udp"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/ss"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
